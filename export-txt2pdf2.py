@@ -49,10 +49,27 @@ def hash_file(path: str) -> str:
 
 
 def find_all_txt_files(root: str) -> List[str]:
-    """找到 root 下所有 txt 文件，返回相对路径列表。"""
+    """找到 root 下所有 txt 文件，返回相对路径列表。排除临时目录和特定路径。"""
     txt_files: List[str] = []
+    # 需要排除的目录名称（不递归进入）
+    exclude_dirs = {
+        'tmp',           # 临时目录
+        'logs',          # 日志目录
+        'chats',         # gemini的chats目录
+        'checkpoint',    # checkpoint目录
+    }
+
     for dp, dn, fn in os.walk(root):
+        # 过滤掉需要排除的目录
+        dn[:] = [d for d in dn if d not in exclude_dirs]
+
         for name in fn:
+            # 跳过特定的文件
+            if name.startswith('.'):
+                continue
+            # 跳过非对话文件
+            if name in ('history.txt', 'logs.txt', 'chat-his.code-workspace'):
+                continue
             if name.lower().endswith(".txt"):
                 full = os.path.join(dp, name)
                 rel = os.path.relpath(full, root)
