@@ -11,6 +11,7 @@ echo "步骤 1: 运行 export-txt2pdf2.py 生成PDF文件..."
 echo "================================================"
 
 # 运行PDF生成脚本
+python convert_all_chat.py 
 python export-txt2pdf2.py
 
 # 检查是否成功生成PDF
