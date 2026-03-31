@@ -57,6 +57,9 @@ def find_all_txt_files(root: str) -> List[str]:
         'logs',          # 日志目录
         'chats',         # gemini的chats目录
         'checkpoint',    # checkpoint目录
+        'todos',         # claude的todos目录
+        'plugins',       # claude的plugins目录
+        'sessions',      # codex的sessions目录
     }
 
     for dp, dn, fn in os.walk(root):
@@ -67,8 +70,15 @@ def find_all_txt_files(root: str) -> List[str]:
             # 跳过特定的文件
             if name.startswith('.'):
                 continue
-            # 跳过非对话文件
-            if name in ('history.txt', 'logs.txt', 'chat-his.code-workspace'):
+            # 跳过非对话文件（系统配置、状态文件等）
+            skip_files = {
+                'history.txt', 'logs.txt', 'chat-his.code-workspace',
+                'settings.txt', 'stats-cache.txt', 'auth.txt', 'version.txt',
+                'google_accounts.txt', 'oauth_creds.txt', 'state.txt',
+                'hooks.txt', 'marketplace.txt', 'plugin.txt',
+                'install-counts-cache.txt', 'installed_plugins.txt', 'known_marketplaces.txt',
+            }
+            if name in skip_files:
                 continue
             if name.lower().endswith(".txt"):
                 full = os.path.join(dp, name)

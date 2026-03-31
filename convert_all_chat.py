@@ -276,7 +276,7 @@ def process_json_file(json_path: str, txt_path: str):
 
 
 def convert_one_source_dir(source_dir: str, output_root: str):
-    """处理单个输入目录，输出到：output_root/<源目录名>/..."""
+    """处理单个输入目录，输出到：output_root/<源目录名>/...，支持增量转换"""
     if not os.path.isdir(source_dir):
         print(f"[警告] 跳过：{source_dir}（不是有效目录）")
         return
@@ -285,6 +285,9 @@ def convert_one_source_dir(source_dir: str, output_root: str):
     base_name = os.path.basename(source_abs.rstrip(os.sep)) or "root"
 
     print(f"\n=== 开始扫描目录：{source_dir} (输出子目录名：{base_name}) ===")
+
+    converted_count = 0
+    skipped_count = 0
 
     for root, dirs, files in os.walk(source_dir):
         for filename in files:
@@ -303,6 +306,15 @@ def convert_one_source_dir(source_dir: str, output_root: str):
             txt_relative = txt_relative.rsplit(".", 1)[0] + ".txt"
             txt_output_path = os.path.join(output_root, txt_relative)
 
+            # 增量转换：如果输出文件存在且源文件未修改，则跳过
+            if os.path.exists(txt_output_path):
+                source_mtime = os.path.getmtime(input_path)
+                output_mtime = os.path.getmtime(txt_output_path)
+                # 如果源文件的修改时间早于输出文件，说明不需要重新转换
+                if source_mtime <= output_mtime:
+                    skipped_count += 1
+                    continue
+
             ensure_dir(os.path.dirname(txt_output_path))
 
             if jsonl:
@@ -311,6 +323,9 @@ def convert_one_source_dir(source_dir: str, output_root: str):
             else:
                 print(f"转换(json)：{input_path} → {txt_output_path}")
                 process_json_file(input_path, txt_output_path)
+            converted_count += 1
+
+    print(f"=== 完成扫描 {source_dir}: 转换 {converted_count} 个文件，跳过 {skipped_count} 个未修改文件 ===")
 
 
 def batch_convert_multiple(source_dirs: List[str], output_root: str):
