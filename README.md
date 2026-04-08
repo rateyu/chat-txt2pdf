@@ -2,6 +2,8 @@
 
 本工具用于将 ChatGPT / Claude / Gemini / Codex 等生成的对话记录统一导出为 **结构化 TXT**，并自动转换为 **PDF 电子书**，同时支持 **增量更新**，不会重复生成历史内容。
 
+现在也支持把已有 PDF 反向提取为 TXT。
+
 导出的txt的文件路径:
 /Users/myu/chat-his
 
@@ -39,6 +41,7 @@
 | --------------------- | ------------------------------------ |
 | `convert_all_chat.py` | 将 jsonl / json 格式的聊天记录解析 → 多份结构化 txt |
 | `export-txt2pdf.py`   | 将新增或修改的 txt 自动汇总 → 新的 PDF 增量卷        |
+| `pdf2txt.py`          | 将 PDF 提取为 TXT（单文件或整个目录）              |
 
 特点如下：
 
@@ -132,6 +135,35 @@ chat_ebook_20251201_2.pdf      # 同一天再次执行，自动加编号
 1. **本次所有新增/更新内容的“问题目录”**
 2. **按文件输出完整的对话 txt 内容**
 3. 自动分页、自动换行、支持中文 CJK
+
+---
+
+# **PDF 反向转 TXT**
+
+如果你手上已经有 PDF，需要提取成纯文本，可直接运行：
+
+```bash
+python3 pdf2txt.py chat_ebook_20260408.pdf
+```
+
+默认会在 PDF 同目录生成同名 `.txt` 文件，例如：
+
+```bash
+chat_ebook_20260408.pdf -> chat_ebook_20260408.txt
+```
+
+如果要批量处理整个目录，并把 TXT 输出到单独目录：
+
+```bash
+python3 pdf2txt.py . -o extracted_txt --overwrite
+```
+
+说明：
+
+* 支持单个 PDF 或递归扫描目录
+* `-o / --output-dir`：指定输出目录
+* `--overwrite`：覆盖已存在的 txt
+* 依赖 macOS 自带 `PDFKit`，因此此脚本仅适用于 macOS
 
 ---
 
