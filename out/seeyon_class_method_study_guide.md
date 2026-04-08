@@ -124,12 +124,33 @@
   - token、session、cookie 三者的关系
 - 对应核心对象：
   - `IndexForMobileController.getToken`
+  - `OrgManager`
   - `CurrentUserToSeeyonApp`
   - `orgmember`
   - `orgrelation`
 - 复习重点：
   - 先确认用户身份对象，再确认会话对象，再确认连接状态
   - “用户是谁”和“当前会话是否有效”是两个不同问题
+
+### 5.1 OrgManager 与组织架构读取方法
+
+- 重点问题：
+  - `OrgManager` 常用哪些方法
+  - 什么时候用 `getMemberById`，什么时候用 `getDepartmentById`
+  - 什么时候应该优先走组织缓存而不是直接查表
+  - `orgmember` 和 `orgrelation` 的职责如何区分
+- 对应核心对象：
+  - `OrgManager`
+  - `OrgManagerImpl`
+  - `OrgManagerDirectImpl`
+  - `OrgHelper`
+  - `orgmember`
+  - `orgrelation`
+- 复习重点：
+  - `OrgManager` 是组织架构读取标准入口
+  - `OrgManagerDirectImpl` 更偏底层更新和双表同步，不是日常读取首选
+  - 读组织对象时优先用 `OrgManager`，不要业务代码里到处自己查表
+  - 组织模型问题要同时理解“成员实体”和“关系实体”两层
 
 ### 6. 工作日、截止时间与业务规则配置
 
@@ -393,6 +414,119 @@
 
 ## 六、非核心但高频出现的类与方法
 
+### 0. `OrgManager`
+
+- 核心级别：高频支撑，但非常重要
+- 使用场景：
+  - 根据成员 ID 获取人员对象
+  - 根据部门 ID 获取部门对象
+  - 根据登录名获取成员
+  - 根据角色、岗位、部门、单位取人
+  - 判断成员是否属于某个部门、某个部门树、某个域
+- 为什么重要：
+  - 它是 Seeyon 组织架构读取的标准入口之一
+  - 归档中明确提到它内部会利用组织缓存，因此日常读取比直接查 `orgmember` / `orgrelation` 更合适
+- 常见获取方式：
+  - Spring 注入：`private OrgManager orgManager;`
+  - 运行时获取：`(OrgManager) AppContext.getBean("orgManager")`
+  - 静态辅助获取：`OrgHelper.getOrgManager()`
+
+### 0.1 `OrgManager` 高频方法
+
+- `getMemberById(Long memberId)`
+  - 场景：根据人员 ID 取成员对象
+  - 用法：显示姓名、取人员属性、流程中根据 memberId 反查人
+  - 备注：归档中出现频率很高
+
+- `getDepartmentById(Long deptId)`
+  - 场景：根据部门 ID 取部门对象
+  - 用法：显示部门名、查部门归属、组织匹配
+
+- `getMemberByLoginName(String loginName)`
+  - 场景：登录态识别、按登录名反查用户
+  - 用法：登录、认证、token 相关逻辑
+
+- `getMembersByIds(Collection<Long> memberIds)`
+  - 场景：批量取人
+  - 用法：替代循环里的 N 次 `getMemberById`
+  - 复习重点：这是典型性能优化点
+
+- `getMembersByDepartment(Long deptId)`
+  - 场景：查部门下成员
+  - 用法：组织统计、选人、部门范围处理
+
+- `getMembersByDeptAndLevel(...)`
+  - 场景：按部门和层级查成员
+  - 用法：上下级层级筛选、组织树范围处理
+
+- `getMemberRoles()` / `getMemberRolesForSet(...)`
+  - 场景：查成员角色
+  - 用法：菜单权限、角色判断、权限收敛
+
+- `getMemberPostByMemberIdAndRole(...)`
+  - 场景：按成员和角色取岗位关系
+  - 用法：组织匹配、流程选人、角色岗位联动
+
+- `getMemberPostByDeptAndRole(...)`
+  - 场景：按部门和角色取岗位关系
+  - 用法：部门范围权限和选人
+
+- `getMemberPostByAccountAndRole(...)`
+  - 场景：按单位和角色取岗位关系
+  - 用法：单位级权限计算
+
+- `getMemberPostByPost(...)`
+  - 场景：根据岗位查成员岗位关系
+  - 用法：岗位选人、岗位权限扩展
+
+- `getDepartmentsByUser(Long userId)`
+  - 场景：获取用户所属部门
+  - 用法：一人多部门、部门归属分析
+
+- `getChildDepartments(Long deptId, boolean recursive)`
+  - 场景：获取子部门
+  - 用法：部门树遍历、组织范围扩展
+
+- `getPostById(Long postId)`
+  - 场景：岗位 ID 反查岗位对象
+  - 用法：岗位名称展示、岗位权限判断
+
+- `getAllAccounts()`
+  - 场景：遍历全部单位
+  - 用法：多单位统计、全局组织分析
+
+- `getAllUserDomainIDs(Long userId)`
+  - 场景：取用户可见组织域
+  - 用法：域范围控制、权限判断
+  - 备注：归档里专门讨论过它返回不完整的问题
+
+- `isInDepartment(...)`
+  - 场景：判断成员是否属于某部门或部门树
+  - 用法：权限判断、组织匹配、范围控制
+
+- `isInDepartmentPathOf(parentDeptId, childDeptId)`
+  - 场景：判断部门层级关系
+  - 用法：组织树路径和上下级关系判断
+
+- `getTeamsByMember(memberId, accountId)`
+  - 场景：获取成员所属团队
+  - 用法：团队维度权限和组织扩展
+
+### 0.2 `OrgManager` 与 `orgmember` / `orgrelation` 的关系
+
+- `OrgManager`
+  - 更偏读取入口和组织能力封装
+  - 日常业务层优先通过它取组织数据
+- `orgmember`
+  - 更偏成员实体数据
+  - 适合表达“这个人本身是什么”
+- `orgrelation`
+  - 更偏关系实体数据
+  - 适合表达“这个人和部门/岗位/单位是什么关系”
+- 复习结论：
+  - 日常业务读取优先 `OrgManager`
+  - 组织模型设计分析时再回到底层两张表
+
 ### 1. `WorkflowApiManager`
 
 - 核心级别：高频支撑
@@ -577,6 +711,128 @@
   - 终端环境
   - token/session 关系
   - 页面上下文是否丢失
+
+### 5.1 尽量不用数据库查询的高效方法
+
+这部分是之前讨论过、也很适合你后面反复用的一套思路：很多 Seeyon 问题一上来不一定要直接查库，先利用缓存、上下文对象、运行时状态去判断，通常更快，也更接近真实执行链路。
+
+- 适用场景：
+  - 表单页面报错
+  - 移动端/H5 表单打不开
+  - token/session 异常
+  - 文号、流程、用户上下文已在运行链路中可拿到
+  - 想先快速定位，不想一开始就写 SQL
+
+- 为什么这种方式高效：
+  - 运行时缓存更接近真实请求现场
+  - 很多问题本质是“上下文没拿到”，不是“数据库没数据”
+  - 先看缓存和上下文，能更快判断是入口问题、会话问题、缓存问题还是持久层问题
+
+- 推荐顺序：
+  1. 先看请求入口对象
+  2. 再看 session / token / 当前用户
+  3. 再看缓存 key 和缓存值
+  4. 最后才回源数据库核实
+
+- 常见可优先利用的对象：
+  - `OrgManager`
+    - 适合优先读取成员、部门、单位、角色、岗位等组织对象
+    - 在很多场景下比直接查 `orgmember` / `orgrelation` 更快、更贴近业务代码
+  - `OrgHelper.getOrgManager()`
+    - 适合在无法直接注入依赖时快速拿到组织管理器
+  - `ConcreteSessionFormDataRedisManagerImpl`
+    - 适合先判断表单数据是否还在缓存里
+  - `FormDataController`
+    - 适合判断请求是否正确进入表单处理链
+  - `IndexForMobileController.getToken`
+    - 适合判断移动端 token 获取和认证链路
+  - `AppContext`
+    - 适合获取当前上下文 Bean、用户、环境信息
+  - `GlobalCache` / `SeeyonGlobalCache` / `CacheFactory`
+    - 适合判断全局缓存或组件缓存是否已命中
+  - Redis 相关实现：
+    - `RedisOpt`
+    - `PipelineRedisOpt`
+    - `RedisHandler`
+    - 适合看缓存底层是否真的写入、取出、过期
+
+- 在 Seeyon 里什么情况下先查缓存比查库更合理：
+  - 根据 memberId、deptId、loginName 拿组织对象时
+    - 优先走 `OrgManager`
+  - 页面刚提交完就报“数据不存在”
+    - 这时优先怀疑 session/缓存，不优先怀疑数据库
+  - 移动端/H5 页面中断后重新进入异常
+    - 这时优先怀疑 token、session、上下文续接
+  - 表单临时态数据丢失
+    - 这时优先看 Redis/会话缓存
+  - 某些规则、权限、上下文在运行时已经装载
+    - 这时优先看内存对象和缓存对象，不一定要先查底表
+
+- 典型方法论：
+  - 组织架构问题：
+    - 先看 `OrgManager`
+    - 再看 `OrgHelper.getOrgManager()`
+    - 最后才分析 `orgmember` / `orgrelation`
+  - 表单问题：
+    - 先看 `FormDataController`
+    - 再看 `ConcreteSessionFormDataRedisManagerImpl`
+    - 再判断是否需要查表单定义表或业务数据表
+  - 登录/下线问题：
+    - 先看 token/session/current user
+    - 再看 `orgmember` / `orgrelation` 这类组织模型数据
+  - 工作流/公文处理问题：
+    - 先看方法入参对象，比如 `GovdocDealVO`
+    - 再看流程处理中已经带入的 summary、handleType、上下文状态
+    - 最后才查历史表、记录表
+  - 文号问题：
+    - 先看当前流程上下文、节点权限、表单字段绑定
+    - 再查 `GOVDOC_MARK_RECORD` / `EDOC_MARK_HISTORY`
+
+- 这种方法的好处：
+  - 更接近代码真实执行路径
+  - 更适合快速排查线上现象
+  - 可以减少大量低价值 SQL 试探
+  - 更容易区分“没取到”和“根本没有”
+
+- 风险和边界：
+  - 缓存只能说明“当前运行态看到什么”，不能永远替代数据库
+  - 如果问题涉及最终一致性、历史记录、统计分析，还是必须回到数据库
+  - 如果缓存已过期、已污染、已失效，只看缓存会误判
+
+- 实战判断准则：
+  - 先查缓存：
+    - 当前请求现场问题
+    - 临时态数据问题
+    - 会话态问题
+    - 移动端上下文问题
+  - 先查数据库：
+    - 历史记录问题
+    - 统计报表问题
+    - 文号重复、历史追踪、全量分析
+    - 需要确认最终落库结果的问题
+
+- 一句话记忆：
+  - 运行时问题先看缓存和上下文，历史和统计问题再看数据库。
+
+### 5.2 OrgManager 使用规范
+
+- 日常读取组织对象优先：
+  - `OrgManager`
+- 批量读取优先：
+  - `getMembersByIds(...)`
+  - 不要循环里多次 `getMemberById(...)`
+- 推荐获取方式顺序：
+  - 优先 Spring 注入
+  - 其次 `AppContext.getBean("orgManager")`
+  - 再次 `OrgHelper.getOrgManager()`
+- 不建议直接查底表的场景：
+  - 只想拿用户姓名、部门名称、岗位名称
+  - 只想判断成员是否在某部门或某部门树
+  - 只想判断用户角色和组织范围
+- 需要回到底层表或 Direct 层的场景：
+  - 分析 `orgmember` / `orgrelation` 双表设计
+  - 排查组织数据更新不一致
+  - 研究 `OrgManagerDirectImpl.updateMembers(...)` 这类底层同步逻辑
 
 ### 6. 日志规范
 
